@@ -1,0 +1,5 @@
+go-reset-ap (1.0.0) unstable; urgency=medium
+
+  * Initial release.
+
+ -- Maud Spierings <maudspierings@gocontroll.com>  Tue, 25 Nov 2025 11:27:02 +0100

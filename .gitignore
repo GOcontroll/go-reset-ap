@@ -1,0 +1,4 @@
+debhelper-build-stamp
+files
+go-reset-ap/
+go-reset-ap.*
