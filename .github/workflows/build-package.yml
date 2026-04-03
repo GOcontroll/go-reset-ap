@@ -1,0 +1,74 @@
+name: Build and publish go-reset-ap package
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Install build dependencies
+        run: sudo apt-get install -y dpkg-dev
+
+      - name: Build .deb
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          PACKAGE=go-reset-ap
+          ARCH=all
+          BUILD="${RUNNER_TEMP}/${PACKAGE}_${VERSION}_${ARCH}"
+          DIST="${RUNNER_TEMP}/dist"
+
+          mkdir -p "${BUILD}/DEBIAN" "${DIST}"
+
+          # --- Binary -------------------------------------------------------------
+          install -Dm755 go-reset-ap "${BUILD}/usr/bin/go-reset-ap"
+
+          # --- DEBIAN/control -----------------------------------------------------
+          cat > "${BUILD}/DEBIAN/control" << CONTROL
+          Package: ${PACKAGE}
+          Version: ${VERSION}
+          Architecture: ${ARCH}
+          Maintainer: GOcontroll B.V. <info@gocontroll.com>
+          Depends: go-sn
+          Section: misc
+          Priority: optional
+          Homepage: https://gocontroll.com
+          Description: A simple script to reset the default Wi-Fi access point
+           Resets the Wi-Fi access point to the default GOcontroll configuration
+           based on the controller serial number.
+          CONTROL
+
+          # --- Build --------------------------------------------------------------
+          dpkg-deb -Zxz --build --root-owner-group "${BUILD}" \
+            "${DIST}/${PACKAGE}_${VERSION}_${ARCH}.deb"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ runner.temp }}/dist/go-reset-ap_${{ steps.version.outputs.version }}_all.deb
+          generate_release_notes: true
+
+      - name: Trigger go-apt index rebuild
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.DISPATCH_TOKEN }}
+          repository: GOcontroll/go-apt
+          event-type: rebuild-index
+          client-payload: |
+            {
+              "package": "go-reset-ap",
+              "version": "${{ steps.version.outputs.version }}",
+              "arch": "all",
+              "deb_url": "https://github.com/GOcontroll/go-reset-ap/releases/download/${{ github.ref_name }}/go-reset-ap_${{ steps.version.outputs.version }}_all.deb"
+            }
